@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雲林斗六、莿桐、林內咖啡地圖</title>
+
+  <!-- 1. Leaflet 核心 CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- 2. MarkerCluster 標記聚集套件 CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; height: 100vh; overflow: hidden; }
+    
+    /* 左側邊欄 */
+    #sidebar { 
+      width: 320px; 
+      height: 100%; 
+      background: #ffffff; 
+      border-right: 1px solid #e0e0e0; 
+      display: flex; 
+      flex-direction: column; 
+      z-index: 1000; 
+      box-shadow: 2px 0 8px rgba(0,0,0,0.08); 
+    }
+
+    /* 頂部固定篩選區塊 */
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid #f0f0f0;
+      background: #fafafa;
+    }
+    .sidebar-header h2 { margin: 0 0 12px 0; font-size: 18px; color: #333; }
+
+    /* 定位按鈕樣式 */
+    #locate-btn {
+      width: 100%;
+      padding: 10px;
+      background: #059669;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: background 0.2s;
+    }
+    #locate-btn:hover { background: #047857; }
+    #locate-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+    .filter-group { margin-bottom: 10px; }
+    .filter-group label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: bold; color: #555; }
+    
+    /* 搜尋輸入框與下拉選單 */
+    input[type="text"], select { 
+      width: 100%; 
+      padding: 8px 10px; 
+      border-radius: 6px; 
+      border: 1px solid #cbd5e1; 
+      font-size: 13px; 
+      outline: none; 
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus, select:focus {
+      border-color: #3b82f6;
+    }
+
+    /* 深夜咖啡過濾標籤按鈕 */
+    .tag-btn {
+      width: 100%;
+      padding: 8px 12px;
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tag-btn:hover { background: #e2e8f0; }
+    .tag-btn.active {
+      background: #4f46e5;
+      color: #ffffff;
+      border-color: #4338ca;
+    }
+
+    #total-count { margin: 10px 0 0 0; font-size: 12px; color: #666; }
+
+    /* 下方店家捲動清單區塊 */
+    #cafe-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      background: #f8fafc;
+    }
+
+    /* 左側店家卡片項目 */
+    .cafe-item {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      gap: 10px;
+    }
+    .cafe-item:hover {
+      border-color: #3b82f6;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+      transform: translateY(-1px);
+    }
+    .cafe-item img {
+      width: 65px;
+      height: 65px;
+      object-fit: cover;
+      border-radius: 6px;
+      flex-shrink: 0;
+      background: #eee;
+    }
+    .cafe-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .cafe-item-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #1e293b;
+      margin: 0 0 4px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cafe-item-dist {
+      font-size: 12px;
+      font-weight: bold;
+      color: #059669;
+      margin-bottom: 2px;
+    }
+    .cafe-item-addr {
+      font-size: 12px;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 邊欄底部免責聲明與作者資訊 */
+    .sidebar-footer {
+      padding: 10px 14px;
+      background: #f1f5f9;
+      border-top: 1px solid #e2e8f0;
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .author-credits {
+      margin-top: 5px;
+      padding-top: 5px;
+      border-top: 1px dashed #cbd5e1;
+      color: #475569;
+    }
+
+    .author-credits a {
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .author-credits a:hover {
+      text-decoration: underline;
+    }
+
+    /* 右側地圖容器 */
+    #map { flex: 1; height: 100%; }
+
+    /* 資訊卡片 Popup 樣式 */
+    .popup-card { max-width: 280px; font-size: 13px; line-height: 1.5; color: #333; }
+    .popup-card img { width: 100%; height: 140px; object-fit: cover; border-radius: 6px; margin-bottom: 8px; }
+    .popup-card h3 { margin: 0 0 6px 0; font-size: 16px; color: #111; }
+    .nav-btn { 
+      display: inline-block; 
+      margin-top: 8px; 
+      padding: 8px 14px; 
+      background: #2563eb; 
+      color: #ffffff !important;
+      text-decoration: none !important; 
+      border-radius: 6px; 
+      font-size: 13px; 
+      font-weight: bold;
+    }
+    .nav-btn:hover { 
+      background: #1d4ed8; 
+      color: #ffffff !important;
+    }
+
+    #toggle-btn {
+      display: none;
+    }
+
+    /* 手機版半透明遮罩（電腦版預設不顯示） */
+    #backdrop {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      #toggle-btn {
+        display: block;
+        position: fixed;
+        bottom: 24px;
+        right: 20px;
+        z-index: 2000;
+        padding: 12px 20px;
+        background: #2563eb;
+        color: #ffffff;
+        border: none;
+        border-radius: 30px;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        cursor: pointer;
+      }
+
+      /* 側邊欄在手機版改為浮動抽屜，預設收在螢幕左側外面 */
+      #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 85%;
+        max-width: 360px;
+        height: 100%;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+        z-index: 2500;
+      }
+
+      /* 點擊切換後滑入畫面 */
+      #sidebar.open {
+        transform: translateX(0);
+      }
+
+      /* 遮罩樣式：鋪滿全螢幕、半透明黑、預設隱藏 */
+      #backdrop {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 2400; /* 比側邊欄 2500 稍微低一點，但高於地圖 */
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      }
+
+      /* 側邊欄打開時，遮罩淡入並允許點擊 */
+      #backdrop.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 左側邊欄 -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <h2>☕ 雲林斗六、莿桐、林內咖啡地圖</h2>
+      <button id="locate-btn">📍 尋找離我最近的咖啡廳</button>
+      
+      <!-- 關鍵字搜尋列 -->
+      <div class="filter-group">
+        <label for="search-input">搜尋店名、地址：</label>
+        <input type="text" id="search-input" placeholder="輸入關鍵字（例如：斗六、手沖、貓...）">
+      </div>
+
+      <!-- 行政區選單 -->
+      <div class="filter-group">
+        <label for="town-select">選擇行政區：</label>
+        <select id="town-select">
+          <option value="ALL">全部行政區</option>
+        </select>
+      </div>
+
+      <!-- 深夜咖啡篩選按鈕 -->
+      <button id="night-filter-btn" class="tag-btn">🌙 只看深夜咖啡（營業至 21:00 後）</button>
+      <p id="total-count">讀取中...</p>
+    </div>
+
+    <!-- 左側店家清單容器 -->
+    <div id="cafe-list"></div>
+
+    <!-- 邊欄底部資訊與聯絡作者 -->
+    <div class="sidebar-footer">
+      <div>⚠️ 營業時間與資訊僅供參考，請以店家現場及官方公告為準。</div>
+      <div class="author-credits">
+        地圖由 <b>廖昶淳服務團隊</b> 製作｜資訊回報與調整：<a href="https://www.facebook.com/yunlin.npp.gary" target="_blank" rel="noopener noreferrer">點此聯繫</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 手機版背景遮罩 -->
+  <div id="backdrop"></div>
+
+  <!-- 右側地圖視窗 -->
+  <div id="map"></div>
+
+  <!-- 手機版專用浮動按鈕（加在這裡） -->
+  <button id="toggle-btn">📋 查看清單</button>
+
+  <!-- 引入 JS 庫 -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <script>
+    // 1. 初始化地圖
+    // 定義台灣全島（含澎湖、綠島、蘭嶼）的邊界範圍 [南西座標, 北東座標]
+    const taiwanBounds = L.latLngBounds(
+      [21.5, 119.0], // 西南角（屏東恆春外海、澎湖以西）
+      [25.5, 122.5]  // 東北角（基隆富貴角以北、宜蘭以東）
+    );
+
+    // 2. 初始化地圖並綁定邊界限制
+    const map = L.map('map', {
+      center: [23.7092, 120.5445],
+      zoom: 12,
+      minZoom: 9,                     // 限制最小縮放層級，避免使用者縮到太小看到整個地球
+      maxBounds: taiwanBounds,        // 設定可移動的最大邊界
+      maxBoundsViscosity: 1.0         // 邊界阻尼係數：1.0 代表完全硬性阻擋，拖不出去
+    });
+
+    // 2. 載入底圖圖磚（Esri World Street Map ）
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18,
+      attribution: 'Tiles &copy; Esri'
+    }).addTo(map);
+
+
+    // 3. 建立標記聚集群組
+    const clusterGroup = L.markerClusterGroup();
+    map.addLayer(clusterGroup);
+
+    let allCafeData = [];
+    let currentUserLatLng = null;
+    let userMarker = null;
+    let isNightFilterActive = false;
+    const markerMap = {}; // 用於店名反查 Marker
+
+    // 4. 深夜咖啡判斷邏輯（結束營業時間 >= 21:00 或跨夜至凌晨）
+    function isLateNightCafe(hoursStr) {
+      if (!hoursStr || hoursStr === 'nan' || hoursStr === '店家未提供') return false;
+      const timeMatches = [...hoursStr.matchAll(/[–~-](\d{1,2}):(\d{2})/g)];
+      for (const m of timeMatches) {
+        const endHour = parseInt(m[1], 10);
+        if (endHour >= 21 || (endHour >= 0 && endHour <= 5)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // 5. 統一多重條件過濾器（搜尋關鍵字 + 行政區 + 深夜按鈕）
+    function getFilteredCafes() {
+      const selectedTown = document.getElementById('town-select').value;
+      const searchKeyword = document.getElementById('search-input').value.trim().toLowerCase();
+
+      return allCafeData.filter(c => {
+        // 行政區比對
+        const matchTown = (selectedTown === 'ALL') || (c.town === selectedTown);
+        
+        // 深夜咖啡比對
+        const matchNight = !isNightFilterActive || isLateNightCafe(c.hours);
+
+        // 搜尋關鍵字比對（店名或地址）
+        const cafeName = (c.name || '').toLowerCase();
+        const cafeAddr = (c.address || '').toLowerCase();
+        const matchSearch = !searchKeyword || cafeName.includes(searchKeyword) || cafeAddr.includes(searchKeyword);
+
+        return matchTown && matchNight && matchSearch;
+      });
+    }
+
+    // 6. 點選店家時的鏡頭平移與彈出 Popup 處理
+    function focusCafe(name, lat, lng) {
+      const marker = markerMap[name];
+      if (!marker) return;
+
+      map.flyTo([lat, lng], 16, { duration: 1.2 });
+      setTimeout(() => {
+        clusterGroup.zoomToShowLayer(marker, () => {
+          marker.openPopup();
+        });
+      }, 1300);
+    }
+
+    // 7. 渲染「地圖點位」與「左側清單」
+    function renderCafes(cafes) {
+      clusterGroup.clearLayers();
+      const listContainer = document.getElementById('cafe-list');
+      listContainer.innerHTML = '';
+
+      // 若有定位，依照距離由近到遠排序
+      if (currentUserLatLng) {
+        cafes.sort((a, b) => {
+          const distA = map.distance(currentUserLatLng, [a.lat, a.lng]);
+          const distB = map.distance(currentUserLatLng, [b.lat, b.lng]);
+          return distA - distB;
+        });
+      }
+
+      if (cafes.length === 0) {
+        listContainer.innerHTML = `
+          <div style="text-align:center; padding: 40px 10px; color:#94a3b8;">
+            <div style="font-size: 32px; margin-bottom: 8px;">🔍</div>
+            <div style="font-size: 14px; font-weight: bold;">找不到符合條件的咖啡廳</div>
+            <div style="font-size: 12px; margin-top: 4px;">請嘗試更換關鍵字或行政區</div>
+          </div>
+        `;
+        document.getElementById('total-count').innerText = `目前顯示：0 間店家`;
+        return;
+      }
+
+      cafes.forEach(c => {
+        const photoTag = (c.photo && c.photo.startsWith("http")) 
+          ? `<img src="${c.photo}" alt="${c.name}" referrerpolicy="no-referrer">` 
+          : '';
+
+        const hoursText = (c.hours && c.hours !== 'nan') 
+          ? c.hours.replace(/ \| /g, '<br>&nbsp;&nbsp;') 
+          : '店家未提供';
+
+        const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.name + ' ' + (c.address || ''))}`;
+
+        // 距離文字計算
+        let distStr = "";
+        if (currentUserLatLng) {
+          const distMeters = map.distance(currentUserLatLng, [c.lat, c.lng]);
+          distStr = distMeters < 1000 
+            ? `${Math.round(distMeters)} 公尺` 
+            : `${(distMeters / 1000).toFixed(1)} 公里`;
+        }
+
+        const distanceTag = distStr ? `<div style="color: #059669; font-weight: bold; margin-bottom: 4px;">📏 距離你約 ${distStr}</div>` : '';
+
+        // 電話判斷
+        const hasPhone = c.phone && c.phone !== 'nan' && c.phone.trim() !== '';
+        const phoneHtml = hasPhone 
+          ? `<a href="tel:${c.phone}">${c.phone}</a>` 
+          : '無';
+
+        // 官方網站判斷
+        const hasWebsite = c.website && c.website !== 'nan' && c.website.startsWith('http');
+        const websiteTag = hasWebsite 
+          ? `<div>🌐 <b>官網：</b><a href="${c.website}" target="_blank" style="color: #2563eb; word-break: break-all;">造訪官方連結</a></div>` 
+          : '';
+
+        // A. 建立地圖 Marker 與 Popup
+        const popupHtml = `
+          <div class="popup-card">
+            ${photoTag}
+            <h3>${c.name}</h3>
+            ${distanceTag}
+            <div>📍 <b>地址：</b>${c.address || '無'}</div>
+            <div>📞 <b>電話：</b>${phoneHtml}</div>
+            <div style="margin-top: 4px;">🕒 <b>營業時間：</b><br>&nbsp;&nbsp;${hoursText}</div>
+            ${websiteTag}
+            <a class="nav-btn" href="${mapsLink}" target="_blank">📍 在 Google 地圖開啟</a>
+          </div>
+        `;
+
+        const marker = L.marker([c.lat, c.lng]).bindPopup(popupHtml);
+        markerMap[c.name] = marker;
+        clusterGroup.addLayer(marker);
+
+        // B. 建立左側列表項目卡片
+        const itemCard = document.createElement('div');
+        itemCard.className = 'cafe-item';
+        itemCard.innerHTML = `
+          ${c.photo && c.photo.startsWith("http") 
+            ? `<img src="${c.photo}" alt="${c.name}" referrerpolicy="no-referrer">` 
+            : '<div style="width:65px;height:65px;background:#e2e8f0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;">☕</div>'}
+          <div class="cafe-item-info">
+            <div class="cafe-item-title">${c.name}</div>
+            ${distStr ? `<div class="cafe-item-dist">📍 ${distStr}</div>` : ''}
+            <div class="cafe-item-addr">${c.address || '未提供詳細地址'}</div>
+          </div>
+        `;
+
+        itemCard.addEventListener('click', () => {
+          focusCafe(c.name, c.lat, c.lng);
+        });
+
+        listContainer.appendChild(itemCard);
+      });
+
+      document.getElementById('total-count').innerText = `目前顯示：${cafes.length} 間店家`;
+    }
+
+    // 8. 抓取 JSON 資料
+    fetch('cafes.json')
+      .then(res => res.json())
+      .then(data => {
+        allCafeData = data;
+        renderCafes(allCafeData);
+
+        // 動態生成行政區選項
+        const towns = [...new Set(data.map(d => d.town).filter(Boolean))];
+        const select = document.getElementById('town-select');
+        towns.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t;
+          opt.innerText = t;
+          select.appendChild(opt);
+        });
+
+        // 監聽「關鍵字搜尋列」即時輸入事件
+        document.getElementById('search-input').addEventListener('input', () => {
+          renderCafes(getFilteredCafes());
+        });
+
+        // 監聽「行政區選單」切換事件
+        select.addEventListener('change', () => {
+          renderCafes(getFilteredCafes());
+        });
+
+        // 監聽「深夜咖啡」按鈕切換
+        const nightBtn = document.getElementById('night-filter-btn');
+        nightBtn.addEventListener('click', () => {
+          isNightFilterActive = !isNightFilterActive;
+          nightBtn.classList.toggle('active', isNightFilterActive);
+          renderCafes(getFilteredCafes());
+        });
+      })
+      .catch(err => console.error("無法載入 cafes.json：", err));
+
+    // 9. 定位按鈕點擊處理
+    const locateBtn = document.getElementById('locate-btn');
+    locateBtn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        alert("您的瀏覽器不支援地理定位功能");
+        return;
+      }
+
+      locateBtn.innerText = "定位中...";
+      locateBtn.disabled = true;
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          currentUserLatLng = L.latLng(position.coords.latitude, position.coords.longitude);
+
+          // 繪製或更新使用者位置藍點
+          if (userMarker) {
+            userMarker.setLatLng(currentUserLatLng);
+          } else {
+            userMarker = L.circleMarker(currentUserLatLng, {
+              radius: 8,
+              fillColor: "#2563eb",
+              color: "#ffffff",
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.9
+            }).addTo(map).bindPopup("📍 你目前的位置");
+          }
+
+          // 重新排序並渲染符合條件的店家
+          const currentList = getFilteredCafes();
+          renderCafes(currentList);
+
+          // 自動聚焦至距離最近的店家
+          if (currentList.length > 0) {
+            const nearest = currentList[0];
+            focusCafe(nearest.name, nearest.lat, nearest.lng);
+          }
+
+          locateBtn.innerText = "📍 尋找離我最近的咖啡廳";
+          locateBtn.disabled = false;
+        },
+        (error) => {
+          alert("無法取得您的位置（請確認是否已授權定位權限）");
+          locateBtn.innerText = "📍 尋找離我最近的咖啡廳";
+          locateBtn.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    // 手機版側邊欄切換邏輯
+    const toggleBtn = document.getElementById('toggle-btn');
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('backdrop');
+
+    // 封裝一個關閉選單的函式
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+      if (backdrop) backdrop.classList.remove('show');
+      if (toggleBtn) toggleBtn.innerText = '📋 查看清單';
+    }
+
+    // 點擊按鈕切換
+    toggleBtn.addEventListener('click', () => {
+      const isOpen = sidebar.classList.toggle('open');
+      if (backdrop) backdrop.classList.toggle('show', isOpen);
+      toggleBtn.innerText = isOpen ? '🗺️ 回到地圖' : '📋 查看清單';
+    });
+
+    // 點擊半透明遮罩空白處，直接關閉選單
+    if (backdrop) {
+      backdrop.addEventListener('click', closeSidebar);
+    }
+
+    // 點選店家卡片時自動關閉
+    const cafeList = document.getElementById('cafe-list');
+    cafeList.addEventListener('click', (e) => {
+      if (window.innerWidth <= 768 && e.target.closest('.cafe-item')) {
+        closeSidebar();
+      }
+    });
+
+    // 手機版：向左滑動手勢關閉側邊欄
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    sidebar.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    sidebar.addEventListener('touchend', (e) => {
+    if (window.innerWidth > 768 || !sidebar.classList.contains('open')) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+
+    const diffX = touchEndX - touchStartX;
+    const diffY = touchEndY - touchStartY;
+
+    // 判定條件：
+    // 1. 往左滑動距離超過 50px (diffX < -50)
+    // 2. 水平滑動幅度大於垂直滑動幅度（避免上下滾動清單時誤觸關閉）
+    if (diffX < -50 && Math.abs(diffX) > Math.abs(diffY)) {
+        closeSidebar();
+        if (toggleBtn) toggleBtn.innerText = '📋 查看清單';
+    }
+    }, { passive: true });
+  </script>
+</body>
+</html>

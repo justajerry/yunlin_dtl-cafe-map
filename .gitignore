@@ -1,0 +1,41 @@
+# Python 相關檔案與暫存
+*.py
+*.pyc
+__pycache__/
+.pytest_cache/
+*.venv
+venv/
+env/
+
+# Excel 與試算表檔案
+*.xlsx
+*.xls
+*.csv
+*.txt
+
+# 地圖原始軌跡與地理標記檔
+*.kml
+*.kmz
+*.geojson
+*.png
+
+# 作業系統產生的隱藏垃圾檔
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 編輯器暫存設定
+.vscode/
+.idea/
+
+# 舊版、備份與測試版本檔案（v1, v2, _bak, _old 等）
+*v[0-9]*
+*_v[0-9]*
+*v1*
+*v2*
+*v3*
+*.bak
+*_bak*
+*_old*
+*_test*
+*copy*
